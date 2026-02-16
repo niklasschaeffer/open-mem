@@ -57,6 +57,40 @@ describe("ModeResolverV2", () => {
 		expect(resolved.promptOverrides?.language).toBe("es");
 	});
 
+	test("inherits array fields from parent when child omits them", () => {
+		const dir = mkTempDir();
+		writeFileSync(
+			join(dir, "base.json"),
+			JSON.stringify({
+				id: "base",
+				name: "Base",
+				description: "base",
+				observationTypes: ["decision"],
+				conceptVocabulary: ["pattern"],
+				entityTypes: ["project"],
+				relationshipTypes: ["related_to"],
+			}),
+		);
+		writeFileSync(
+			join(dir, "child.json"),
+			JSON.stringify({
+				id: "child",
+				extends: "base",
+				name: "Child",
+				description: "child",
+			}),
+		);
+
+		const resolver = new ModeResolverV2(dir);
+		const raw = resolver.loadAllRaw();
+		const resolved = resolver.resolveById("child", raw);
+		expect(resolved.id).toBe("child");
+		expect(resolved.observationTypes).toEqual(["decision"]);
+		expect(resolved.conceptVocabulary).toEqual(["pattern"]);
+		expect(resolved.entityTypes).toEqual(["project"]);
+		expect(resolved.relationshipTypes).toEqual(["related_to"]);
+	});
+
 	test("falls back safely on cyclic extends", () => {
 		const dir = mkTempDir();
 		writeFileSync(
