@@ -1,21 +1,20 @@
 import { join } from "node:path";
 import type { ModeConfig } from "../types";
-import { getDefaultModeConfig, type ModeConfigSource, ModeResolverV2 } from "./resolver";
+import { type ModeConfigSource, ModeResolverV2 } from "./resolver";
 
 const MODES_DIR = join(import.meta.dir, ".");
+const resolver = new ModeResolverV2(MODES_DIR);
 
 let modeCache: Map<string, ModeConfigSource> | null = null;
 
 function loadAllModes(): Map<string, ModeConfigSource> {
 	if (modeCache) return modeCache;
 
-	const resolver = new ModeResolverV2(MODES_DIR);
 	modeCache = resolver.loadAllRaw();
 	return modeCache;
 }
 
 export function loadMode(modeId: string): ModeConfig {
-	const resolver = new ModeResolverV2(MODES_DIR);
 	return resolver.resolveById(modeId, loadAllModes());
 }
 
@@ -25,7 +24,7 @@ export function getAvailableModes(): string[] {
 }
 
 export function getDefaultMode(): ModeConfig {
-	return loadMode("code") ?? getDefaultModeConfig();
+	return loadMode("code");
 }
 
 /** Reset the internal cache — useful for tests. */

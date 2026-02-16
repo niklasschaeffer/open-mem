@@ -18,7 +18,7 @@ import {
 	ok,
 	TOOL_CONTRACTS,
 } from "../../contracts/api";
-import type { MemoryEngine, RuntimeStatusSnapshot } from "../../core/contracts";
+import type { HealthStatus, MemoryEngine, RuntimeStatusSnapshot } from "../../core/contracts";
 import { getAvailableModes, loadMode } from "../../modes/loader";
 import { DefaultReadinessService } from "../../services/readiness";
 import { DefaultSetupDiagnosticsService } from "../../services/setup-diagnostics";
@@ -98,6 +98,26 @@ function isLocalRequest(c: Context): boolean {
 		.map((entry) => entry.trim())
 		.filter((entry) => entry.length > 0);
 	return forwardedChain.every(isLoopbackHost);
+}
+
+function buildRuntimeFallback(health: HealthStatus): RuntimeStatusSnapshot {
+	return {
+		status: health.status,
+		timestamp: health.timestamp,
+		uptimeMs: process.uptime() * 1000,
+		queue: {
+			mode: "in-process",
+			running: false,
+			processing: false,
+			pending: 0,
+			lastBatchDurationMs: 0,
+			lastProcessedAt: null,
+			lastFailedAt: null,
+			lastError: null,
+		},
+		batches: { total: 0, processedItems: 0, failedItems: 0, avgDurationMs: 0 },
+		enqueueCount: 0,
+	};
 }
 
 export function createDashboardApp(deps: DashboardDeps): Hono {
@@ -271,24 +291,7 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 		const health = memoryEngine.getHealth();
 		const metrics = memoryEngine.getMetrics();
 		const runtime = runtimeStatusProvider?.();
-		const runtimeFallback = {
-			status: health.status,
-			timestamp: health.timestamp,
-			uptimeMs: process.uptime() * 1000,
-			queue: {
-				mode: "in-process",
-				running: false,
-				processing: false,
-				pending: 0,
-				lastBatchDurationMs: 0,
-				lastProcessedAt: null,
-				lastFailedAt: null,
-				lastError: null,
-			},
-			batches: { total: 0, processedItems: 0, failedItems: 0, avgDurationMs: 0 },
-			enqueueCount: 0,
-		} satisfies RuntimeStatusSnapshot;
-		const runtimeSnapshot = runtime ?? runtimeFallback;
+		const runtimeSnapshot = runtime ?? buildRuntimeFallback(health);
 
 		return c.json(
 			ok({
@@ -306,23 +309,7 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 
 	app.get("/v1/readiness", (c) => {
 		const health = memoryEngine.getHealth();
-		const runtime = runtimeStatusProvider?.() ?? {
-			status: health.status,
-			timestamp: health.timestamp,
-			uptimeMs: process.uptime() * 1000,
-			queue: {
-				mode: "in-process",
-				running: false,
-				processing: false,
-				pending: 0,
-				lastBatchDurationMs: 0,
-				lastProcessedAt: null,
-				lastFailedAt: null,
-				lastError: null,
-			},
-			batches: { total: 0, processedItems: 0, failedItems: 0, avgDurationMs: 0 },
-			enqueueCount: 0,
-		};
+		const runtime = runtimeStatusProvider?.() ?? buildRuntimeFallback(health);
 
 		const readiness = new DefaultReadinessService().evaluate({
 			config: deps.config,
@@ -361,23 +348,7 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 	app.get("/v1/queue", (c) => {
 		if (!isLocalRequest(c)) return c.json(fail("LOCKED_BY_ENV", "Localhost access required"), 403);
 		const health = memoryEngine.getHealth();
-		const runtime = runtimeStatusProvider?.() ?? {
-			status: health.status,
-			timestamp: health.timestamp,
-			uptimeMs: process.uptime() * 1000,
-			queue: {
-				mode: "in-process",
-				running: false,
-				processing: false,
-				pending: 0,
-				lastBatchDurationMs: 0,
-				lastProcessedAt: null,
-				lastFailedAt: null,
-				lastError: null,
-			},
-			batches: { total: 0, processedItems: 0, failedItems: 0, avgDurationMs: 0 },
-			enqueueCount: 0,
-		};
+		const runtime = runtimeStatusProvider?.() ?? buildRuntimeFallback(health);
 		return c.json(
 			ok({
 				contractVersion: CONTRACT_VERSION,
@@ -397,23 +368,7 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 	app.get("/v1/metrics", (c) => {
 		const health = memoryEngine.getHealth();
 		const runtime = runtimeStatusProvider?.();
-		const runtimeSnapshot = runtime ?? {
-			status: health.status,
-			timestamp: health.timestamp,
-			uptimeMs: process.uptime() * 1000,
-			queue: {
-				mode: "in-process",
-				running: false,
-				processing: false,
-				pending: 0,
-				lastBatchDurationMs: 0,
-				lastProcessedAt: null,
-				lastFailedAt: null,
-				lastError: null,
-			},
-			batches: { total: 0, processedItems: 0, failedItems: 0, avgDurationMs: 0 },
-			enqueueCount: 0,
-		};
+		const runtimeSnapshot = runtime ?? buildRuntimeFallback(health);
 		return c.json(ok(runtimeSnapshot));
 	});
 

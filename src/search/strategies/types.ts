@@ -1,6 +1,6 @@
 import type { EmbeddingModel } from "ai";
 import type { ObservationRepository } from "../../db/observations";
-import type { ObservationType, SearchResult } from "../../types";
+import type { ObservationType } from "../../types";
 
 export interface StrategyOptions {
 	type?: ObservationType;
@@ -21,10 +21,3 @@ export interface StrategyDeps {
 	embeddingModel: EmbeddingModel | null;
 	hasVectorExtension: boolean;
 }
-
-export type StrategyExecutor = (
-	deps: StrategyDeps,
-	query: string,
-	options: StrategyOptions,
-	limit: number,
-) => Promise<SearchResult[]> | SearchResult[];
