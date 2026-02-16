@@ -85,6 +85,8 @@ function isLoopbackHost(value: string): boolean {
 }
 
 function isLocalRequest(c: Context): boolean {
+	// Primary isolation is at the listener level (dashboard binds to 127.0.0.1).
+	// This is an additional guard for local-only operator routes.
 	const hostHeader = c.req.header("host");
 	if (!hostHeader) return false;
 	const [firstHost = ""] = hostHeader.split(",");
@@ -129,6 +131,8 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 	} = deps;
 
 	const app = new Hono();
+	const readinessService = new DefaultReadinessService();
+	const diagnosticsService = new DefaultSetupDiagnosticsService();
 
 	app.get("/v1/memory/observations", (c) => {
 		const limit = clampLimit(c.req.query("limit"), 50);
@@ -311,7 +315,7 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 		const health = memoryEngine.getHealth();
 		const runtime = runtimeStatusProvider?.() ?? buildRuntimeFallback(health);
 
-		const readiness = new DefaultReadinessService().evaluate({
+		const readiness = readinessService.evaluate({
 			config: deps.config,
 			adapterStatuses: memoryEngine.getAdapterStatuses().map((adapter) => ({
 				name: adapter.name,
@@ -327,7 +331,7 @@ export function createDashboardApp(deps: DashboardDeps): Hono {
 	});
 
 	app.get("/v1/diagnostics", (c) => {
-		const diagnostics = new DefaultSetupDiagnosticsService().run(deps.config);
+		const diagnostics = diagnosticsService.run(deps.config);
 		return c.json(ok(diagnostics), diagnostics.ok ? 200 : 503);
 	});
 

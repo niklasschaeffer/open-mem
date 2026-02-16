@@ -135,11 +135,11 @@ Queue runtime controls switching between modes and liveness fallback.
 ### OpenCode
 
 - **Hooks**: `tool.execute.after`, `chat.message`, `event`, `experimental.chat.system.transform`, `experimental.session.compacting`
-- **Tools**: All 9 `memory.*` tools
+- **Tools**: All 9 `mem-*` tools
 
 ### MCP Server
 
-- Same 9 tools over stdin/stdout JSON-RPC (`memory.*` namespace)
+- Same 9 tools over stdin/stdout JSON-RPC (`mem-*` namespace)
 - Strict lifecycle support with protocol-version negotiation
 
 ### Dashboard (HTTP)

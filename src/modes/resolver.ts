@@ -128,6 +128,11 @@ export class ModeResolverV2 {
 				const raw = readFileSync(path, "utf-8");
 				const parsed = JSON.parse(raw);
 				if (!isValidModeSource(parsed)) continue;
+				if (modes.has(parsed.id)) {
+					console.warn(
+						`[open-mem] Duplicate mode id "${parsed.id}" in ${path}; overriding previous definition.`,
+					);
+				}
 				modes.set(parsed.id, parsed);
 			} catch {
 				// ignore malformed files

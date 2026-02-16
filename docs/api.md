@@ -265,6 +265,18 @@ GET /v1/health
 
 Returns runtime health including database status, queue state, and provider connectivity.
 
+Response:
+
+```json
+{
+  "ok": true,
+  "status": "healthy",
+  "database": { "connected": true, "sizeBytes": 4194304 },
+  "queue": { "pending": 0, "processing": 0 },
+  "provider": { "name": "google", "configured": true }
+}
+```
+
 ### Readiness
 
 ```
@@ -309,11 +321,9 @@ Response:
 
 ```json
 {
-  "ok": true,
-  "status": "healthy",
-  "database": { "connected": true, "sizeBytes": 4194304 },
-  "queue": { "pending": 0, "processing": 0 },
-  "provider": { "name": "google", "configured": true }
+  "data": { "processed": 4 },
+  "error": null,
+  "meta": {}
 }
 ```
 
