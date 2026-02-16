@@ -2,7 +2,7 @@
 
 All notable changes to open-mem are documented here. For the full changelog including CI, scripts, and internal details, see [CHANGELOG.md on GitHub](https://github.com/clopca/open-mem/blob/main/CHANGELOG.md).
 
-## [Unreleased]
+## [0.12.0] - 2026-02-16
 
 ### Changed
 - Security hardening for operator queue routes now relies on loopback listener binding rather than request headers.
