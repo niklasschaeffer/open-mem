@@ -1,6 +1,6 @@
 {
 	"name": "open-mem",
-	"version": "0.13.0",
+	"version": "0.14.0",
 	"description": "Persistent memory plugin for OpenCode — captures, compresses, and recalls context across coding sessions",
 	"type": "module",
 	"main": "dist/index.js",
@@ -84,6 +84,7 @@
 		"bun": ">=1.0.0"
 	},
 	"dependencies": {
+		"@clack/prompts": "^0.10.1",
 		"@ai-sdk/amazon-bedrock": "^4.0.51",
 		"@ai-sdk/anthropic": "^3.0.38",
 		"@ai-sdk/google": "^3.0.22",

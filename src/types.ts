@@ -243,8 +243,9 @@ export interface Hooks {
 		input: {
 			sessionID: string;
 			agent?: string;
-			model?: string;
+			model?: string | { providerID: string; modelID: string };
 			messageID?: string;
+			variant?: string;
 		},
 		output: { message: unknown; parts: unknown[] },
 	) => Promise<void>;

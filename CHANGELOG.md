@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-02-23
+
+### Added
+- **Interactive setup wizard** — `npx open-mem` now launches a beautiful interactive onboarding wizard (powered by `@clack/prompts`) that guides users through provider selection, dashboard, workflow mode, and context file configuration. Use `--quick` to skip the wizard.
+- **OpenCode session bridge** — when no API key is configured, open-mem automatically routes AI compression through OpenCode's own session model. Zero-config AI compression for all users, regardless of auth method (env vars, OAuth, Copilot, etc.).
+- **Smart provider detection** — at plugin init, queries OpenCode's configured providers via the SDK client and gives actionable guidance instead of generic warnings.
+
+### Changed
+- `chat.message` hook now accepts the new OpenCode model format (`{ providerID, modelID }` object alongside legacy string).
+- Auto-detect provider option updated to reflect automatic OpenCode fallback — no separate API key warning removed.
+- Wizard messaging reflects that AI compression works out-of-the-box without extra configuration.
+
 ## [0.13.0] - 2026-02-23
 
 ### Added

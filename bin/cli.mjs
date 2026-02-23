@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // open-mem — Plugin Installer for OpenCode
-// Usage: npx open-mem [--global] [--force] [--uninstall] [--dry-run] [--help] [--version]
+// Usage: npx open-mem [--global] [--force] [--quick] [--uninstall] [--dry-run] [--help] [--version]
 
 import fs from "node:fs";
 import os from "node:os";
@@ -36,6 +36,7 @@ const flagDryRun = args.includes("--dry-run");
 const flagForce = args.includes("--force");
 const flagHelp = args.includes("--help") || args.includes("-h");
 const flagVersion = args.includes("--version") || args.includes("-v");
+const flagQuick = args.includes("--quick");
 
 // ── unknown flag validation ─────────────────────────────────────────
 const KNOWN_FLAGS = new Set([
@@ -43,6 +44,7 @@ const KNOWN_FLAGS = new Set([
 	"--uninstall",
 	"--dry-run",
 	"--force",
+	"--quick",
 	"--help",
 	"-h",
 	"--version",
@@ -91,7 +93,8 @@ ${BOLD}USAGE${RESET}
   npx open-mem [flags]
 
 ${BOLD}FLAGS${RESET}
-  ${DIM}(none)${RESET}        Add open-mem to local .opencode/opencode.json
+  ${DIM}(none)${RESET}        Interactive setup wizard (TTY only)
+  --quick       Skip wizard, install directly (non-interactive)
   --global      Target ~/.config/opencode/opencode.json instead
   --uninstall   Remove open-mem from all discovered config files
   --dry-run     Preview changes without writing anything
@@ -627,19 +630,239 @@ ${BOLD}Next steps:${RESET}
 	process.stdout.write(`\n${BOLD}Docs:${RESET} ${DOCS_URL}\n`);
 }
 
+// ── wizard flow ────────────────────────────────────────────────────────
+
+async function runWizard() {
+	const p = await import("@clack/prompts");
+
+	p.intro("open-mem — setup wizard");
+
+	// Detect if plugin is already installed somewhere
+	const existingLocal = findUp(process.cwd());
+	const globalDir = path.join(os.homedir(), ".config", "opencode");
+	const existingGlobal = ["opencode.jsonc", "opencode.json"]
+		.map((n) => path.join(globalDir, n))
+		.find((p) => fs.existsSync(p));
+
+	let alreadyInstalled = false;
+	for (const cfgPath of [existingLocal, existingGlobal].filter(Boolean)) {
+		const cfg = readConfig(cfgPath);
+		if (cfg && cfg.data && findPluginEntry(cfg.data) !== -1) {
+			alreadyInstalled = true;
+			p.log.info(`Plugin already configured in ${cfgPath} — reconfiguring settings.`);
+			break;
+		}
+	}
+
+	const answers = await p.group({
+		scope: () => p.select({
+			message: "Where to install?",
+			options: [
+				{ value: "local", label: "This project", hint: ".opencode/opencode.json" },
+				{ value: "global", label: "Global", hint: "~/.config/opencode/opencode.json" },
+			],
+		}),
+
+		provider: () => p.select({
+			message: "AI compression provider",
+			options: [
+				{ value: "auto", label: "Auto-detect", hint: "uses your environment keys, or OpenCode's model as fallback — recommended" },
+				{ value: "google", label: "Google Gemini", hint: "free tier available" },
+				{ value: "anthropic", label: "Anthropic", hint: "Claude models" },
+				{ value: "bedrock", label: "AWS Bedrock", hint: "uses AWS credentials" },
+				{ value: "openai", label: "OpenAI", hint: "GPT models" },
+				{ value: "openrouter", label: "OpenRouter", hint: "100+ models" },
+				{ value: "none", label: "None", hint: "basic metadata only, no AI key needed" },
+			],
+		}),
+
+		dashboard: () => p.confirm({
+			message: "Enable web dashboard?",
+			initialValue: false,
+		}),
+
+		mode: () => p.select({
+			message: "Workflow mode",
+			options: [
+				{ value: "code", label: "Code", hint: "optimized for coding sessions — default" },
+				{ value: "research", label: "Research", hint: "broader knowledge capture" },
+			],
+		}),
+
+		folderContext: () => p.select({
+			message: "Auto-generate context files per folder?",
+			options: [
+				{ value: "AGENTS.md", label: "AGENTS.md", hint: "OpenCode default" },
+				{ value: "CLAUDE.md", label: "CLAUDE.md", hint: "for Claude Code users" },
+				{ value: "disabled", label: "Disabled", hint: "no auto-generated files" },
+			],
+		}),
+	}, {
+		onCancel: () => {
+			p.cancel("Setup cancelled.");
+			process.exit(0);
+		},
+	});
+
+	// Apply the configuration
+	const s = p.spinner();
+
+	// 1. Add plugin to opencode config (unless already installed)
+	if (!alreadyInstalled) {
+		s.start("Adding open-mem to OpenCode config");
+		const isGlobal = answers.scope === "global";
+
+		// Determine target path based on wizard scope answer
+		let target;
+		if (isGlobal) {
+			const gDir = path.join(os.homedir(), ".config", "opencode");
+			target = ["opencode.jsonc", "opencode.json"]
+				.map((n) => path.join(gDir, n))
+				.find((p) => fs.existsSync(p)) || path.join(gDir, "opencode.json");
+		} else {
+			const found = findUp(process.cwd());
+			target = found || path.join(process.cwd(), ".opencode", "opencode.json");
+		}
+
+		const config = readConfig(target);
+		if (!config) {
+			writeNewConfig(target);
+		} else if (config.data) {
+			addPluginEntry(target, config.raw, config.data);
+		} else {
+			p.log.error(`Could not parse ${target} — fix the JSON/JSONC syntax first.`);
+			process.exit(1);
+		}
+		s.stop("Plugin configured");
+	}
+
+	// 2. Write .open-mem/config.json (only if non-default choices)
+	const projectConfig = {};
+	if (answers.provider !== "auto" && answers.provider !== "none" && answers.provider !== "google") {
+		projectConfig.provider = answers.provider;
+	}
+	if (answers.dashboard) {
+		projectConfig.dashboardEnabled = true;
+	}
+	if (answers.mode !== "code") {
+		projectConfig.mode = answers.mode;
+	}
+	if (answers.folderContext === "disabled") {
+		projectConfig.folderContextEnabled = false;
+	} else if (answers.folderContext === "CLAUDE.md") {
+		projectConfig.folderContextFilename = "CLAUDE.md";
+	}
+
+	if (Object.keys(projectConfig).length > 0) {
+		s.start("Writing project config");
+		const configDir = path.join(process.cwd(), ".open-mem");
+		const configPath = path.join(configDir, "config.json");
+
+		// Read existing config if present, merge
+		let existing = {};
+		if (fs.existsSync(configPath)) {
+			try { existing = JSON.parse(fs.readFileSync(configPath, "utf8")); } catch {}
+		}
+
+		const merged = { ...existing, ...projectConfig };
+
+		if (flagDryRun) {
+			s.stop("Project config (dry-run)");
+			p.log.info(`Would write to ${configPath}:`);
+			p.log.message(JSON.stringify(merged, null, 2));
+		} else {
+			fs.mkdirSync(configDir, { recursive: true });
+			fs.writeFileSync(configPath, JSON.stringify(merged, null, 2) + "\n", "utf8");
+			s.stop("Project config saved");
+		}
+	}
+
+	// 3. Show summary
+	const providerLabels = {
+		auto: "Auto-detect",
+		google: "Google Gemini",
+		anthropic: "Anthropic",
+		bedrock: "AWS Bedrock",
+		openai: "OpenAI",
+		openrouter: "OpenRouter",
+		none: "None (basic extractor)",
+	};
+
+	const summaryLines = [
+		`Provider:    ${providerLabels[answers.provider]}`,
+		`Dashboard:   ${answers.dashboard ? "enabled" : "disabled"}`,
+		`Mode:        ${answers.mode}`,
+		`Context:     ${answers.folderContext === "disabled" ? "disabled" : answers.folderContext}`,
+	];
+	p.note(summaryLines.join("\n"), "Configuration");
+	if (answers.provider === "auto") {
+		const detected = detectAIProviders();
+		if (detected.length > 0) {
+			const names = detected.map((d) => d.name).join(", ");
+			p.log.info(`AI compression: ${names} detected \u2014 will use directly`);
+		} else {
+			p.log.info("AI compression: will use your OpenCode session model automatically");
+			p.log.message("  No separate API key needed \u2014 open-mem piggybacks on your active provider.");
+			p.log.message("  Optional: set GOOGLE_GENERATIVE_AI_API_KEY for a dedicated (free) compression model.");
+		}
+	}
+
+	// 4. Show env var instructions for chosen provider
+	const envVarInstructions = {
+		auto: null,
+		google: "export GOOGLE_GENERATIVE_AI_API_KEY=...  # free key: https://aistudio.google.com/apikey",
+		anthropic: "export ANTHROPIC_API_KEY=sk-ant-...",
+		bedrock: "# Configure AWS credentials (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY or AWS_PROFILE)",
+		openai: "export OPENAI_API_KEY=sk-...",
+		openrouter: "export OPENROUTER_API_KEY=sk-or-...",
+		none: null,
+	};
+
+	if (envVarInstructions[answers.provider]) {
+		p.note(envVarInstructions[answers.provider], "Set this environment variable");
+	}
+
+	if (answers.dashboard) {
+		p.log.info("Dashboard will be available at http://localhost:3737");
+	}
+
+	p.outro("open-mem is ready! Start OpenCode to begin.");
+}
+
 // ── main ────────────────────────────────────────────────────────────
 
-async function main() {
-	const version = getVersion();
+function printHeader(version) {
 	process.stdout.write(
 		`\n${BOLD}open-mem${RESET}${version ? ` ${DIM}v${version}${RESET}` : ""} ${DIM}— Persistent memory plugin for OpenCode${RESET}\n\n`,
 	);
-
-	if (flagDryRun) info(`${YELLOW}Dry-run mode${RESET} — no files will be modified.\n`);
-
+}
+async function main() {
+	const version = getVersion();
+	// Flags that bypass the wizard entirely
 	if (flagUninstall) {
+		printHeader(version);
+		if (flagDryRun) info(`${YELLOW}Dry-run mode${RESET} — no files will be modified.\n`);
 		await uninstall();
+		return;
+	}
+
+	// Interactive wizard: default when TTY and no bypass flags
+	const useWizard = process.stdout.isTTY && process.stdin.isTTY && !flagQuick && !flagForce && !flagGlobal;
+
+	if (useWizard) {
+		try {
+			await runWizard();
+		} catch (e) {
+			// If clack fails to load or crashes, fall back to quick install
+			warn(`Wizard failed (${e.message}), falling back to quick install.`);
+			printHeader(version);
+			if (flagDryRun) info(`${YELLOW}Dry-run mode${RESET} — no files will be modified.\n`);
+			await install();
+		}
 	} else {
+		// Quick install (existing behavior)
+		printHeader(version);
+		if (flagDryRun) info(`${YELLOW}Dry-run mode${RESET} — no files will be modified.\n`);
 		await install();
 	}
 }
