@@ -1,6 +1,6 @@
 {
 	"name": "open-mem",
-	"version": "0.12.0",
+	"version": "0.13.0",
 	"description": "Persistent memory plugin for OpenCode — captures, compresses, and recalls context across coding sessions",
 	"type": "module",
 	"main": "dist/index.js",
@@ -13,6 +13,7 @@
 		}
 	},
 	"bin": {
+		"open-mem": "./bin/cli.mjs",
 		"open-mem-mcp": "./dist/mcp.js",
 		"open-mem-daemon": "./dist/daemon.js",
 		"open-mem-maintenance": "./dist/maintenance.js",
@@ -22,6 +23,7 @@
 	},
 	"files": [
 		"dist",
+		"bin",
 		"README.md",
 		"LICENSE",
 		"CHANGELOG.md"

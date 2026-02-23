@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-02-23
+
+### Added
+- **`npx open-mem` CLI installer** — one-command plugin setup for OpenCode. Automatically finds or creates the config file and adds `open-mem` to the plugin array. Supports `--global`, `--uninstall`, `--dry-run`, `--force`, and `--version` flags. JSONC-aware (preserves comments in existing config files). Cleans OpenCode plugin cache on uninstall.
+- AI provider detection in installer — shows which providers are configured after install.
+
+### Changed
+- Documentation updated — README Quick Start and Getting Started guide now recommend `npx open-mem` as the primary installation method, with manual `bun add` as alternative.
+
 ## [0.12.0] - 2026-02-16
 
 ### Changed

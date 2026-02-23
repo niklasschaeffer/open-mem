@@ -32,18 +32,24 @@ You use tools, open-mem captures the outputs, AI compresses them into structured
 ## Quick start
 
 ```bash
+npx open-mem
+```
+
+That's it. This adds `open-mem` to your OpenCode plugin config automatically. It starts capturing from your next session.
+
+Or install manually:
+
+```bash
 bun add open-mem
 ```
 
-Add it to your OpenCode config (`~/.config/opencode/opencode.json`):
+Then add to your OpenCode config (`~/.config/opencode/opencode.json` or `.opencode/opencode.json`):
 
 ```json
 {
   "plugin": ["open-mem"]
 }
 ```
-
-That's it. open-mem starts capturing from your next session.
 
 ### AI compression (optional)
 

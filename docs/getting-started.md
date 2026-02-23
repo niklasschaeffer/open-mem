@@ -9,13 +9,23 @@ This guide walks you through installing, configuring, and using open-mem with Op
 
 ## Installation
 
+The quickest way to install:
+
+```bash
+npx open-mem
+```
+
+This automatically adds `open-mem` to your OpenCode plugin config. Use `npx open-mem --global` to install globally instead of per-project.
+
+### Manual installation
+
+Alternatively, install the package and configure manually:
+
 ```bash
 bun add open-mem
 ```
 
-## Configure OpenCode
-
-Add `open-mem` to the `plugin` array in your OpenCode config (`~/.config/opencode/opencode.json`):
+Add `open-mem` to the `plugin` array in your OpenCode config (`~/.config/opencode/opencode.json` or `.opencode/opencode.json`):
 
 ```json
 {
@@ -24,6 +34,12 @@ Add `open-mem` to the `plugin` array in your OpenCode config (`~/.config/opencod
 ```
 
 > **Note**: If you already have plugins, just append `"open-mem"` to the existing array.
+
+### Uninstall
+
+```bash
+npx open-mem --uninstall
+```
 
 That's it. open-mem starts capturing from your next OpenCode session.
 
