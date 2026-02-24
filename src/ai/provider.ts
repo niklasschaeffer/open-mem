@@ -12,7 +12,7 @@ import type { ProviderFallbackPolicy } from "./fallback-policy";
 // -----------------------------------------------------------------------------
 
 /** Supported AI provider identifiers. */
-export type ProviderType = "anthropic" | "bedrock" | "openai" | "google" | string;
+export type ProviderType = "anthropic" | "bedrock" | "openai" | "openai-compatible" | "google" | string;
 
 /** Configuration for creating an AI model instance. */
 export interface ModelConfig {
@@ -68,6 +68,15 @@ export function createModel(config: ModelConfig): LanguageModel {
 			const openai = createOpenAI({ apiKey: config.apiKey });
 			return openai(config.model);
 		}
+		case "openai-compatible": {
+			// User must install @ai-sdk/openai
+			const { createOpenAI } = require("@ai-sdk/openai");
+			const openai = createOpenAI({
+				apiKey: config.apiKey,
+				baseURL: process.env.OPENAI_API_BASE_URL,
+			});
+			return openai(config.model);
+		}
 		case "google": {
 			// User must install @ai-sdk/google
 			const { createGoogleGenerativeAI } = require("@ai-sdk/google");
@@ -81,7 +90,7 @@ export function createModel(config: ModelConfig): LanguageModel {
 		}
 		default:
 			throw new Error(
-				`Unknown provider: ${config.provider}. Supported: anthropic, bedrock, openai, google, openrouter`,
+				`Unknown provider: ${config.provider}. Supported: anthropic, bedrock, openai, openai-compatible, google, openrouter`,
 			);
 	}
 }
@@ -101,6 +110,14 @@ export function createEmbeddingModel(config: ModelConfig): EmbeddingModel | null
 			case "openai": {
 				const { createOpenAI } = require("@ai-sdk/openai");
 				const openai = createOpenAI({ apiKey: config.apiKey });
+				return openai.embedding("text-embedding-3-small");
+			}
+			case "openai-compatible": {
+				const { createOpenAI } = require("@ai-sdk/openai");
+				const openai = createOpenAI({
+					apiKey: config.apiKey,
+					baseURL: process.env.OPENAI_API_BASE_URL,
+				});
 				return openai.embedding("text-embedding-3-small");
 			}
 			case "bedrock": {
@@ -130,6 +147,7 @@ const DEFAULT_FALLBACK_MODELS: Record<string, string> = {
 	openai: "gpt-4o-mini",
 	bedrock: "us.anthropic.claude-3-5-haiku-20241022-v1:0",
 	openrouter: "google/gemini-2.5-flash-lite",
+	"openai-compatible": "gpt-4o-mini",
 };
 
 function resolveApiKeyForProvider(provider: string): string | undefined {
@@ -139,6 +157,8 @@ function resolveApiKeyForProvider(provider: string): string | undefined {
 		case "anthropic":
 			return process.env.ANTHROPIC_API_KEY;
 		case "openai":
+			return process.env.OPENAI_API_KEY;
+		case "openai-compatible":
 			return process.env.OPENAI_API_KEY;
 		case "openrouter":
 			return process.env.OPENROUTER_API_KEY;

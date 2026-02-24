@@ -215,6 +215,8 @@ export function getDefaultDimension(provider: string): number {
 			return 768;
 		case "openai":
 			return 1536;
+		case "openai-compatible":
+			return 1536;
 		case "bedrock":
 			return 1024;
 		case "anthropic":
@@ -267,6 +269,8 @@ export function resolveConfig(
 			config.provider = "bedrock";
 		} else if (process.env.OPENROUTER_API_KEY) {
 			config.provider = "openrouter";
+		} else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_BASE_URL) {
+			config.provider = "openai-compatible";
 		}
 		// else: keep default ("google")
 	}
@@ -281,6 +285,9 @@ export function resolveConfig(
 				config.apiKey = process.env.ANTHROPIC_API_KEY;
 				break;
 			case "openai":
+				config.apiKey = process.env.OPENAI_API_KEY;
+				break;
+			case "openai-compatible":
 				config.apiKey = process.env.OPENAI_API_KEY;
 				break;
 			case "openrouter":
