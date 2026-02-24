@@ -46,3 +46,12 @@ coverage/
 # Auto-generated context files (open-mem plugin)
 **/AGENTS.md
 # /open-mem-parallel
+# MAD agent files (never commit)
+.agent-task
+.agent-done
+.agent-blocked
+.agent-error
+.mad-logs.jsonl
+
+# Worktrees directory
+worktrees/
