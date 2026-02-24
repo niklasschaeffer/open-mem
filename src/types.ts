@@ -130,6 +130,7 @@ export interface OpenMemConfig {
 	apiKey: string | undefined; // Provider API key (env: ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
 	openaiApiBaseUrl?: string; // Custom OpenAI-compatible API base URL
 	model: string; // Model for compression (default: claude-sonnet-4-20250514)
+	openaiApiBaseUrl?: string; // Custom base URL for OpenAI-compatible APIs (env: OPENAI_API_BASE_URL)
 	maxTokensPerCompression: number; // Max tokens for compression response
 
 	// Behavior

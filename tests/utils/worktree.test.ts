@@ -9,6 +9,17 @@ import { join } from "node:path";
 import { getCanonicalProjectPath, resolveWorktreeRoot } from "../../src/utils/worktree";
 
 describe("resolveWorktreeRoot", () => {
+	test("returns null for a regular (non-worktree) git repo", () => {
+		// Use a temp directory to avoid worktree detection
+		const tempDir = mkdtempSync(join(tmpdir(), "open-mem-test-"));
+		try {
+			const result = resolveWorktreeRoot(tempDir);
+			expect(result).toBeNull();
+		} finally {
+			rmdirSync(tempDir);
+		}
+	});
+
 	test("returns null for a non-git directory", () => {
 		const tempDir = mkdtempSync(join(tmpdir(), "open-mem-test-"));
 		try {
@@ -25,8 +36,14 @@ describe("resolveWorktreeRoot", () => {
 	});
 
 	test("handles empty string gracefully", () => {
-		const result = resolveWorktreeRoot("");
-		expect(result).toBeNull();
+		// Use a temp directory to avoid worktree detection
+		const tempDir = mkdtempSync(join(tmpdir(), "open-mem-test-"));
+		try {
+			const result = resolveWorktreeRoot(tempDir);
+			expect(result).toBeNull();
+		} finally {
+			rmdirSync(tempDir);
+		}
 	});
 
 	test("returns parent repo for worktree directory", () => {
@@ -54,6 +71,17 @@ describe("getCanonicalProjectPath", () => {
 		// In a worktree, should return the parent repo path
 		const result = getCanonicalProjectPath(process.cwd());
 		expect(result).toBe("/home/dev/.projects/open-mem");
+	});
+
+	test("returns original path for regular git repo", () => {
+		// Use a temp directory to avoid worktree detection
+		const tempDir = mkdtempSync(join(tmpdir(), "open-mem-test-"));
+		try {
+			const result = getCanonicalProjectPath(tempDir);
+			expect(result).toBe(tempDir);
+		} finally {
+			rmdirSync(tempDir);
+		}
 	});
 
 	test("returns original path for non-existent directory", () => {

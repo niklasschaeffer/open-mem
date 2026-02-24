@@ -56,7 +56,7 @@ const FIELD_SCHEMA: ConfigFieldSchema[] = [
 		group: "AI",
 		liveApply: false,
 		restartRequired: true,
-		enum: ["google", "anthropic", "openai", "bedrock"],
+		enum: ["google", "anthropic", "openai", "openai-compatible", "bedrock"],
 	},
 	{
 		key: "model",
@@ -294,6 +294,7 @@ const ENV_BY_KEY: Partial<Record<keyof OpenMemConfig, string[]>> = {
 	dbPath: ["OPEN_MEM_DB_PATH"],
 	provider: ["OPEN_MEM_PROVIDER"],
 	model: ["OPEN_MEM_MODEL"],
+	openaiApiBaseUrl: ["OPENAI_API_BASE_URL"],
 	compressionEnabled: ["OPEN_MEM_COMPRESSION"],
 	contextInjectionEnabled: ["OPEN_MEM_CONTEXT_INJECTION"],
 	maxContextTokens: ["OPEN_MEM_MAX_CONTEXT_TOKENS"],

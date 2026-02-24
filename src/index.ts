@@ -111,7 +111,7 @@ async function diagnoseProviderSetup(
 
 		const result = await c.config.providers();
 		// result.data is typically an array of provider objects
-		const providers = result?.data;
+		const providers = result?.data as Array<{ id?: string; name?: string }> | undefined;
 		if (!Array.isArray(providers) || providers.length === 0) return;
 
 		const providerNames = providers
@@ -186,7 +186,13 @@ export default async function plugin(input: PluginInput): Promise<Hooks> {
 	if (config.compressionEnabled && providerRequiresKey && !config.apiKey) {
 		try {
 			const { createOpenCodeBridge } = await import("./ai/opencode-bridge");
-			openCodeBridge = createOpenCodeBridge(input.client);
+			const bridge = createOpenCodeBridge(input.client);
+			if (bridge) {
+				openCodeBridge = {
+					generateText: bridge.generateText as (options: unknown) => Promise<unknown>,
+					cleanup: bridge.cleanup,
+				};
+			}
 
 			if (openCodeBridge) {
 				type DummyModel = { modelId: string; provider: string };
