@@ -11,9 +11,11 @@ import type { LanguageModel } from "ai";
 // The OpenCode SDK client type (loosely typed to avoid hard dependency)
 type OpenCodeClient = {
 	session: {
-		create: (options: any) => Promise<any>;
-		prompt: (options: any) => Promise<any>;
-		delete: (options: any) => Promise<any>;
+		create: (options: unknown) => Promise<{ data?: { id?: string } }>;
+		prompt: (
+			options: unknown,
+		) => Promise<{ data?: { parts?: Array<{ type: string; text?: string }> } }>;
+		delete: (options: unknown) => Promise<unknown>;
 	};
 };
 
@@ -68,7 +70,7 @@ export function createOpenCodeBridge(client: unknown) {
 		prompt?: string;
 		system?: string;
 		maxOutputTokens?: number;
-		[key: string]: any;
+		[key: string]: unknown;
 	}): Promise<{
 		text: string;
 		finishReason: string;
@@ -91,8 +93,8 @@ export function createOpenCodeBridge(client: unknown) {
 		// Extract text from response parts
 		const parts = result?.data?.parts || [];
 		const text = parts
-			.filter((p: any) => p.type === "text")
-			.map((p: any) => p.text || "")
+			.filter((p: { type: string }) => p.type === "text")
+			.map((p: { text?: string }) => p.text || "")
 			.join("");
 
 		return {
