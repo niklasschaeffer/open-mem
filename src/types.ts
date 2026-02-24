@@ -128,6 +128,7 @@ export interface OpenMemConfig {
 	// AI
 	provider: string; // AI provider: "anthropic" | "bedrock" | "openai" | "google"
 	apiKey: string | undefined; // Provider API key (env: ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
+	openaiApiBaseUrl?: string; // Custom OpenAI-compatible API base URL
 	model: string; // Model for compression (default: claude-sonnet-4-20250514)
 	maxTokensPerCompression: number; // Max tokens for compression response
 
