@@ -12,7 +12,13 @@ import type { ProviderFallbackPolicy } from "./fallback-policy";
 // -----------------------------------------------------------------------------
 
 /** Supported AI provider identifiers. */
-export type ProviderType = "anthropic" | "bedrock" | "openai" | "openai-compatible" | "google" | string;
+export type ProviderType =
+	| "anthropic"
+	| "bedrock"
+	| "openai"
+	| "openai-compatible"
+	| "google"
+	| string;
 
 /** Configuration for creating an AI model instance. */
 export interface ModelConfig {

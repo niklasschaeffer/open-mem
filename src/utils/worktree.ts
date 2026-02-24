@@ -12,6 +12,11 @@ import { dirname, resolve } from "node:path";
  * @returns The main repo root path if inside a worktree, or `null` if not a worktree
  */
 export function resolveWorktreeRoot(projectDir: string): string | null {
+	// Handle empty or whitespace-only strings
+	if (!projectDir || !projectDir.trim()) {
+		return null;
+	}
+
 	try {
 		const commonResult = spawnSync("git", ["rev-parse", "--git-common-dir"], {
 			cwd: projectDir,

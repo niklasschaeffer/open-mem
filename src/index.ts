@@ -103,7 +103,10 @@ async function diagnoseProviderSetup(
 
 	// Try to query OpenCode's configured providers via the SDK client
 	try {
-		const c = client as any;
+		type OpenCodeConfigClient = {
+			config?: { providers: () => Promise<{ data?: Array<{ id?: string; name?: string }> }> };
+		};
+		const c = client as OpenCodeConfigClient;
 		if (!c?.config?.providers) return;
 
 		const result = await c.config.providers();
@@ -112,28 +115,16 @@ async function diagnoseProviderSetup(
 		if (!Array.isArray(providers) || providers.length === 0) return;
 
 		const providerNames = providers
-			.map((p: any) => p.id || p.name || "unknown")
-			.filter((n: string) => n !== "unknown");
+			.map((p) => p.id || p.name || "unknown")
+			.filter((n) => n !== "unknown");
 
 		if (providerNames.length > 0) {
-			console.warn(
-				`[open-mem] AI compression disabled — no API key found in environment.`,
-			);
-			console.warn(
-				`[open-mem] OpenCode has providers configured: ${providerNames.join(", ")}`,
-			);
-			console.warn(
-				`[open-mem] These may use OAuth tokens that open-mem can't access directly.`,
-			);
-			console.warn(
-				`[open-mem] Tip: Get a free Gemini API key for compression:`,
-			);
-			console.warn(
-				`[open-mem]   → https://aistudio.google.com/apikey`,
-			);
-			console.warn(
-				`[open-mem]   → export GOOGLE_GENERATIVE_AI_API_KEY=your-key`,
-			);
+			console.warn(`[open-mem] AI compression disabled — no API key found in environment.`);
+			console.warn(`[open-mem] OpenCode has providers configured: ${providerNames.join(", ")}`);
+			console.warn(`[open-mem] These may use OAuth tokens that open-mem can't access directly.`);
+			console.warn(`[open-mem] Tip: Get a free Gemini API key for compression:`);
+			console.warn(`[open-mem]   → https://aistudio.google.com/apikey`);
+			console.warn(`[open-mem]   → export GOOGLE_GENERATIVE_AI_API_KEY=your-key`);
 		}
 	} catch {
 		// SDK call failed — silently ignore, this is just diagnostics
@@ -189,7 +180,8 @@ export default async function plugin(input: PluginInput): Promise<Hooks> {
 
 	// 4b. OpenCode session bridge fallback
 	const providerRequiresKey = config.provider !== "bedrock";
-	let openCodeBridge: { generateText: Function; cleanup: () => Promise<void> } | null = null;
+	// biome-ignore lint/suspicious/noExplicitAny: Bridge requires dynamic typing for AI SDK compatibility
+	let openCodeBridge: any = null;
 
 	if (config.compressionEnabled && providerRequiresKey && !config.apiKey) {
 		try {
@@ -197,17 +189,25 @@ export default async function plugin(input: PluginInput): Promise<Hooks> {
 			openCodeBridge = createOpenCodeBridge(input.client);
 
 			if (openCodeBridge) {
-				const dummyModel = { modelId: "opencode-bridge", provider: "opencode" } as any;
+				type DummyModel = { modelId: string; provider: string };
+				const dummyModel: DummyModel = { modelId: "opencode-bridge", provider: "opencode" };
 
+				// biome-ignore lint/suspicious/noExplicitAny: Required to inject bridge into AI SDK classes
 				compressor._generate = openCodeBridge.generateText as any;
+				// biome-ignore lint/suspicious/noExplicitAny: Required to inject bridge into AI SDK classes
 				(compressor as any).model = dummyModel;
 
+				// biome-ignore lint/suspicious/noExplicitAny: Required to inject bridge into AI SDK classes
 				summarizer._generate = openCodeBridge.generateText as any;
+				// biome-ignore lint/suspicious/noExplicitAny: Required to inject bridge into AI SDK classes
 				(summarizer as any).model = dummyModel;
 
-				console.log("[open-mem] AI compression: using OpenCode session model (no separate API key needed)");
+				console.log(
+					"[open-mem] AI compression: using OpenCode session model (no separate API key needed)",
+				);
 			}
 		} catch {
+			// Ignore bridge creation errors
 		}
 	}
 

@@ -11,11 +11,44 @@ import type { LanguageModel } from "ai";
 // The OpenCode SDK client type (loosely typed to avoid hard dependency)
 type OpenCodeClient = {
 	session: {
-		create: (options: any) => Promise<any>;
-		prompt: (options: any) => Promise<any>;
-		delete: (options: any) => Promise<any>;
+		create: (options: SessionCreateOptions) => Promise<SessionCreateResponse>;
+		prompt: (options: SessionPromptOptions) => Promise<SessionPromptResponse>;
+		delete: (options: SessionDeleteOptions) => Promise<unknown>;
 	};
 };
+
+interface SessionCreateOptions {
+	body: { title: string };
+}
+
+interface SessionCreateResponse {
+	data?: {
+		id?: string;
+	};
+}
+
+interface SessionPromptOptions {
+	path: { id: string };
+	body: {
+		parts: Array<{ type: "text"; text: string }>;
+		system?: string;
+		tools: object;
+		noReply: boolean;
+	};
+}
+
+interface SessionPromptResponse {
+	data?: {
+		parts?: Array<{
+			type: string;
+			text?: string;
+		}>;
+	};
+}
+
+interface SessionDeleteOptions {
+	path: { id: string };
+}
 
 /**
  * Create a generateText-compatible function that routes through OpenCode's session API.
@@ -68,7 +101,7 @@ export function createOpenCodeBridge(client: unknown) {
 		prompt?: string;
 		system?: string;
 		maxOutputTokens?: number;
-		[key: string]: any;
+		[key: string]: unknown;
 	}): Promise<{
 		text: string;
 		finishReason: string;
@@ -90,9 +123,10 @@ export function createOpenCodeBridge(client: unknown) {
 
 		// Extract text from response parts
 		const parts = result?.data?.parts || [];
+		type Part = { type: string; text?: string };
 		const text = parts
-			.filter((p: any) => p.type === "text")
-			.map((p: any) => p.text || "")
+			.filter((p: Part) => p.type === "text")
+			.map((p: Part) => p.text || "")
 			.join("");
 
 		return {
