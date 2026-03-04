@@ -20,7 +20,6 @@ export function createQueueRuntime(queue: QueueProcessor): QueueRuntime {
 			queue.start();
 		},
 		setEnqueueOnly: (onEnqueue) => {
-			queue.stop();
 			queue.setMode("enqueue-only");
 			queue.setOnEnqueue(onEnqueue);
 		},

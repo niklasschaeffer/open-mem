@@ -483,7 +483,7 @@ describe("platform workers", () => {
 		expect(readFileSync(pidPath, "utf-8").trim()).toBe(String(foreign.pid));
 	});
 
-	test("stale worker pid is cleaned by maintenance preflight liveness checks", () => {
+	test("maintenance preflight reports stale worker pid without mutating pid files", () => {
 		const project = createTempProject();
 		const dbPath = join(project, ".open-mem", "memory.db");
 		mkdirSync(join(project, ".open-mem"), { recursive: true });
@@ -498,8 +498,8 @@ describe("platform workers", () => {
 		expect(workerCheck).toBeDefined();
 		expect(workerCheck?.state).toBe("dead");
 		expect(workerCheck?.stalePid).toBe(999999);
-		expect(workerCheck?.stalePidRemoved).toBe(true);
-		expect(existsSync(stalePidPath)).toBe(false);
+		expect(workerCheck?.stalePidRemoved).toBe(false);
+		expect(existsSync(stalePidPath)).toBe(true);
 	});
 
 	test("plugin enqueue-only path falls back to in-process when daemon signal fails", async () => {

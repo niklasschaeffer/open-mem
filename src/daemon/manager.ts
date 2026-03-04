@@ -52,15 +52,10 @@ export interface MaintenancePreflightStatus {
 	checks: MaintenancePreflightProcessStatus[];
 }
 
-export function getDaemonStatus(dbPath: string): DaemonStatus {
-	const pidPath = getPidPath(dbPath);
-	return getDaemonStatusFromPidPath(pidPath);
-}
-
 export function getMaintenancePreflightStatus(dbPath: string): MaintenancePreflightStatus {
 	const checks = getKnownProcessPidFiles(dbPath).map(({ type, pidPath }) => {
 		if (type === "daemon") {
-			const daemonStatus = getDaemonStatusFromPidPath(pidPath);
+			const daemonStatus = getDaemonStatusFromPidPath(pidPath, false);
 			return {
 				processType: type,
 				state: daemonStatus.state,
@@ -72,7 +67,7 @@ export function getMaintenancePreflightStatus(dbPath: string): MaintenancePrefli
 			};
 		}
 
-		const liveness = getPidLiveness(pidPath, true);
+		const liveness = getPidLiveness(pidPath, false);
 		if (liveness.state === "alive") {
 			return {
 				processType: type,
@@ -249,12 +244,12 @@ export class DaemonManager {
 	}
 
 	getStatus(): DaemonStatus {
-		return getDaemonStatusFromPidPath(this.pidPath);
+		return getDaemonStatusFromPidPath(this.pidPath, true);
 	}
 }
 
-function getDaemonStatusFromPidPath(pidPath: string): DaemonStatus {
-	const liveness = getPidLiveness(pidPath, true);
+function getDaemonStatusFromPidPath(pidPath: string, removeStale: boolean): DaemonStatus {
+	const liveness = getPidLiveness(pidPath, removeStale);
 	if (liveness.state === "missing") {
 		return {
 			state: "missing",

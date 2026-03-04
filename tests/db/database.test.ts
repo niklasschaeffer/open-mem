@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ProcessRole } from "../../src/db/advisory-lock";
-import { createDatabase, Database } from "../../src/db/database";
+import { createDatabase, Database, type WalCheckpointMode } from "../../src/db/database";
 import { cleanupTestDb } from "./helpers";
 
 let cleanupPaths: string[] = [];
@@ -359,10 +359,46 @@ describe("Database Setup", () => {
 		db.close();
 	});
 
+	test("transaction fallback allows nested transactions when immediate is unavailable", () => {
+		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
+		cleanupPaths.push(dbPath);
+		const db = createDatabase(dbPath);
+		db.exec("CREATE TABLE txn_nested_fallback (id INTEGER PRIMARY KEY, value TEXT)");
+
+		type WrappedTransaction<T> = (() => T) & { immediate?: () => T };
+		type RawTransactionDatabase = {
+			transaction: <T>(fn: () => T) => WrappedTransaction<T>;
+		};
+
+		const raw = db.raw as unknown as RawTransactionDatabase;
+		const originalTransaction = raw.transaction;
+		raw.transaction = <T>(fn: () => T): WrappedTransaction<T> => {
+			return (() => fn()) as WrappedTransaction<T>;
+		};
+
+		try {
+			expect(() =>
+				db.transaction(() => {
+					db.run("INSERT INTO txn_nested_fallback (value) VALUES (?)", ["outer"]);
+					db.transaction(() => {
+						db.run("INSERT INTO txn_nested_fallback (value) VALUES (?)", ["inner"]);
+					});
+				}),
+			).not.toThrow();
+
+			const rows = db.all<{ value: string }>("SELECT value FROM txn_nested_fallback ORDER BY id");
+			expect(rows.map((row) => row.value)).toEqual(["outer", "inner"]);
+		} finally {
+			raw.transaction = originalTransaction;
+			db.close();
+		}
+	});
+
 	test("test_begin_immediate_under_contention", async () => {
 		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
 		const markerPath = `/tmp/open-mem-test-${randomUUID()}.contention.json`;
-		cleanupPaths.push(dbPath, markerPath);
+		const startGatePath = `/tmp/open-mem-test-${randomUUID()}.contention.start`;
+		cleanupPaths.push(dbPath, markerPath, startGatePath);
 
 		const db = createDatabase(dbPath);
 		db.exec("CREATE TABLE txn_contention (id INTEGER PRIMARY KEY, value TEXT)");
@@ -371,10 +407,14 @@ describe("Database Setup", () => {
 		const databaseModulePath = resolve(import.meta.dir, "../../src/db/database.ts");
 		const script = `
 import { createDatabase } from ${JSON.stringify(databaseModulePath)};
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 
 const db = createDatabase(${JSON.stringify(dbPath)});
 const startedAt = Date.now();
+
+while (!existsSync(${JSON.stringify(startGatePath)})) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+}
 
 db.transaction(() => {
   db.run("INSERT INTO txn_contention (value) VALUES (?)", ["writer-2"]);
@@ -395,6 +435,7 @@ db.close();
 		});
 
 		db.transaction(() => {
+			writeFileSync(startGatePath, "go", "utf8");
 			db.run("INSERT INTO txn_contention (value) VALUES (?)", ["writer-1"]);
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, holdMs);
 		});
@@ -574,6 +615,17 @@ db.close();
 		expect(existsSync(dbPath)).toBe(true);
 		expect(existsSync(`${dbPath}-wal`)).toBe(true);
 		expect(existsSync(`${dbPath}-shm`)).toBe(true);
+		db.close();
+	});
+
+	test("checkpoint rejects invalid runtime mode", () => {
+		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
+		cleanupPaths.push(dbPath);
+		const db = createDatabase(dbPath, { processRole: "maintenance" });
+
+		expect(() => db.checkpointWal("invalid" as WalCheckpointMode)).toThrow(
+			"Invalid wal_checkpoint mode: invalid",
+		);
 		db.close();
 	});
 

@@ -65,11 +65,7 @@ export function getPidLiveness(pidPath: string, removeStale: boolean): PidLivene
 	if (!removeStale) {
 		return { state: "dead", pid: null, stalePid: pid, stalePidRemoved: false };
 	}
-	let stalePidRemoved = false;
-	if (existsSync(pidPath)) {
-		removePid(pidPath);
-		stalePidRemoved = !existsSync(pidPath);
-	}
+	const stalePidRemoved = removePidIfMatches(pidPath, pid);
 	return { state: "dead", pid: null, stalePid: pid, stalePidRemoved };
 }
 

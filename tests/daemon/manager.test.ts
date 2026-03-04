@@ -205,6 +205,29 @@ describe("DaemonManager", () => {
 		expect(status.activeProcesses[0]?.pid).toBe(process.pid);
 	});
 
+	test("getMaintenancePreflightStatus does not delete stale pid files", () => {
+		const dir = tmpDir();
+		const daemonPidPath = `${dir}/worker.pid`;
+		const workerPidPath = `${dir}/platform-worker-claude.pid`;
+		writeFileSync(daemonPidPath, "99999999", "utf-8");
+		writeFileSync(workerPidPath, "99999998", "utf-8");
+		cleanupPaths.push(daemonPidPath, workerPidPath);
+
+		const status = getMaintenancePreflightStatus(`${dir}/memory.db`);
+		const daemon = status.checks.find((check) => check.processType === "daemon");
+		const worker = status.checks.find((check) => check.processType === "platform-worker-claude");
+
+		expect(daemon?.state).toBe("dead");
+		expect(daemon?.stalePid).toBe(99999999);
+		expect(daemon?.stalePidRemoved).toBe(false);
+		expect(existsSync(daemonPidPath)).toBe(true);
+
+		expect(worker?.state).toBe("dead");
+		expect(worker?.stalePid).toBe(99999998);
+		expect(worker?.stalePidRemoved).toBe(false);
+		expect(existsSync(workerPidPath)).toBe(true);
+	});
+
 	test("signal returns no-daemon when no PID file exists", () => {
 		const dir = tmpDir();
 		const manager = new DaemonManager({

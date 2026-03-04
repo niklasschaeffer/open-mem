@@ -98,6 +98,7 @@ export interface DatabaseOptions {
 }
 
 export type WalCheckpointMode = "PASSIVE" | "FULL" | "RESTART" | "TRUNCATE";
+const WAL_CHECKPOINT_MODES = new Set<WalCheckpointMode>(["PASSIVE", "FULL", "RESTART", "TRUNCATE"]);
 
 export interface WalCheckpointResult {
 	mode: WalCheckpointMode;
@@ -416,6 +417,10 @@ export class Database {
 				}
 			}
 
+			if (this.transactionDepth > 0) {
+				return fn();
+			}
+
 			this.db.exec("BEGIN IMMEDIATE");
 			this.transactionDepth += 1;
 			try {
@@ -461,9 +466,14 @@ export class Database {
 	}
 
 	public checkpointWal(mode: WalCheckpointMode = "PASSIVE"): WalCheckpointResult {
+		const normalizedMode = typeof mode === "string" ? mode.toUpperCase() : "";
+		if (!WAL_CHECKPOINT_MODES.has(normalizedMode as WalCheckpointMode)) {
+			throw new Error(`Invalid wal_checkpoint mode: ${String(mode)}`);
+		}
+
 		return this.withAdvisoryWriteLock(this.processRole, () => {
 			return this.withRetry("maintenance.wal_checkpoint", () => {
-				const row = this.db.query(`PRAGMA wal_checkpoint(${mode})`).get() as {
+				const row = this.db.query(`PRAGMA wal_checkpoint(${normalizedMode})`).get() as {
 					busy?: number;
 					log?: number;
 					checkpointed?: number;
@@ -474,7 +484,7 @@ export class Database {
 				}
 
 				return {
-					mode,
+					mode: normalizedMode as WalCheckpointMode,
 					busy: row.busy ?? 0,
 					logFrames: row.log ?? 0,
 					checkpointedFrames: row.checkpointed ?? 0,
