@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
 const DIST = resolve(import.meta.dir, "../../dist");
 const ROOT = resolve(import.meta.dir, "../..");
@@ -62,7 +62,11 @@ describe("Build verification", () => {
 	});
 
 	test("docs build command succeeds after documentation updates", async () => {
-		const proc = Bun.spawn([process.execPath, "run", "docs:build"], {
+		const runner =
+			basename(process.execPath) === "bun"
+				? process.execPath
+				: (Bun.which("bun") ?? process.execPath);
+		const proc = Bun.spawn([runner, "run", "docs:build"], {
 			cwd: ROOT,
 			stdout: "pipe",
 			stderr: "pipe",
