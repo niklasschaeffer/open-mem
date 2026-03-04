@@ -15,10 +15,12 @@ export function createQueueRuntime(queue: QueueProcessor): QueueRuntime {
 			queue.stop();
 		},
 		setInProcess: () => {
+			queue.setOnEnqueue(null);
 			queue.setMode("in-process");
 			queue.start();
 		},
 		setEnqueueOnly: (onEnqueue) => {
+			queue.stop();
 			queue.setMode("enqueue-only");
 			queue.setOnEnqueue(onEnqueue);
 		},

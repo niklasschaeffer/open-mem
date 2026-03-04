@@ -5,7 +5,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { getPidPath, isProcessAlive, readPid, removePid, writePid } from "../../src/daemon/pid";
+import {
+	getKnownProcessPidFiles,
+	getPidPath,
+	isProcessAlive,
+	readPid,
+	removePid,
+	writePid,
+} from "../../src/daemon/pid";
 
 let cleanupPaths: string[] = [];
 
@@ -125,5 +132,20 @@ describe("PID File Manager", () => {
 	test("getPidPath handles various database filenames", () => {
 		expect(getPidPath("/home/user/.open-mem/data.db")).toBe("/home/user/.open-mem/worker.pid");
 		expect(getPidPath("/tmp/test.db")).toBe("/tmp/worker.pid");
+	});
+
+	test("getKnownProcessPidFiles returns daemon and worker pid files", () => {
+		const files = getKnownProcessPidFiles("/tmp/project/.open-mem/memory.db");
+		expect(files).toEqual([
+			{ type: "daemon", pidPath: "/tmp/project/.open-mem/worker.pid" },
+			{
+				type: "platform-worker-claude",
+				pidPath: "/tmp/project/.open-mem/platform-worker-claude.pid",
+			},
+			{
+				type: "platform-worker-cursor",
+				pidPath: "/tmp/project/.open-mem/platform-worker-cursor.pid",
+			},
+		]);
 	});
 });

@@ -1,5 +1,21 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
+export interface PidLivenessStatus {
+	state: "alive" | "missing" | "dead";
+	pid: number | null;
+	stalePid: number | null;
+	stalePidRemoved: boolean;
+}
+
+export type PlatformWorkerProcessKind = "claude" | "cursor";
+
+export type KnownProcessType = "daemon" | "platform-worker-claude" | "platform-worker-cursor";
+
+export interface KnownProcessPidFile {
+	type: KnownProcessType;
+	pidPath: string;
+}
+
 /** Write the current process PID to the given file path. */
 export function writePid(pidPath: string): void {
 	const lastSlash = pidPath.lastIndexOf("/");
@@ -37,6 +53,26 @@ export function isProcessAlive(pid: number): boolean {
 	}
 }
 
+/** Resolve process liveness from a PID file with optional stale cleanup. */
+export function getPidLiveness(pidPath: string, removeStale: boolean): PidLivenessStatus {
+	const pid = readPid(pidPath);
+	if (pid === null) {
+		return { state: "missing", pid: null, stalePid: null, stalePidRemoved: false };
+	}
+	if (isProcessAlive(pid)) {
+		return { state: "alive", pid, stalePid: null, stalePidRemoved: false };
+	}
+	if (!removeStale) {
+		return { state: "dead", pid: null, stalePid: pid, stalePidRemoved: false };
+	}
+	let stalePidRemoved = false;
+	if (existsSync(pidPath)) {
+		removePid(pidPath);
+		stalePidRemoved = !existsSync(pidPath);
+	}
+	return { state: "dead", pid: null, stalePid: pid, stalePidRemoved };
+}
+
 /** Remove a PID file, ignoring errors if it doesn't exist. */
 export function removePid(pidPath: string): void {
 	try {
@@ -53,4 +89,21 @@ export function getPidPath(dbPath: string): string {
 		return `${dbPath.substring(0, lastSlash)}/worker.pid`;
 	}
 	return "worker.pid";
+}
+
+/** Derive the platform worker PID path from the database path and worker kind. */
+export function getPlatformWorkerPidPath(dbPath: string, kind: PlatformWorkerProcessKind): string {
+	const lastSlash = dbPath.lastIndexOf("/");
+	const pidDir = lastSlash >= 0 ? dbPath.substring(0, lastSlash) : ".";
+	const suffix = kind === "claude" ? "claude" : "cursor";
+	return `${pidDir}/platform-worker-${suffix}.pid`;
+}
+
+/** Derive known process PID files associated with the database path. */
+export function getKnownProcessPidFiles(dbPath: string): KnownProcessPidFile[] {
+	return [
+		{ type: "daemon", pidPath: getPidPath(dbPath) },
+		{ type: "platform-worker-claude", pidPath: getPlatformWorkerPidPath(dbPath, "claude") },
+		{ type: "platform-worker-cursor", pidPath: getPlatformWorkerPidPath(dbPath, "cursor") },
+	];
 }
