@@ -392,6 +392,7 @@ describe("Database Setup", () => {
 
 		db.get("PRAGMA table_info(pragma_probe)");
 		db.all("PRAGMA index_list(pragma_probe)");
+		db.get("PRAGMA table_info(pragma_probe) -- note: key=value");
 
 		expect(lockCalls).toBe(0);
 		db.close();

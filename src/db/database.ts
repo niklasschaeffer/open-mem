@@ -195,7 +195,7 @@ function hasMutatingStatementIntent(sql: string): boolean {
 	}
 
 	if (upper.startsWith("PRAGMA")) {
-		if (/^PRAGMA\b[\s\S]*=/.test(upper)) {
+		if (/^PRAGMA\s+(?:[A-Z0-9_]+\.)?[A-Z0-9_]+\s*=/.test(upper)) {
 			return true;
 		}
 
