@@ -118,6 +118,57 @@ describe("Database Setup", () => {
 		db.close();
 	});
 
+	test("migrate uses coordinated transaction and write-lock path", () => {
+		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
+		cleanupPaths.push(dbPath);
+		const db = createDatabase(dbPath);
+
+		type WrappedTransaction<T> = (() => T) & { immediate?: () => T };
+		type RawDatabase = {
+			transaction: <T>(fn: () => T) => WrappedTransaction<T>;
+		};
+
+		const raw = db.raw as unknown as RawDatabase;
+		const originalTransaction = raw.transaction;
+		let immediateCalls = 0;
+
+		raw.transaction = <T>(fn: () => T): WrappedTransaction<T> => {
+			const wrapped = (() => fn()) as WrappedTransaction<T>;
+			wrapped.immediate = () => {
+				immediateCalls += 1;
+				return fn();
+			};
+			return wrapped;
+		};
+
+		let advisoryLockCalls = 0;
+		const originalWithAdvisoryWriteLock = db.withAdvisoryWriteLock.bind(db);
+		(
+			db as unknown as {
+				withAdvisoryWriteLock: Database["withAdvisoryWriteLock"];
+			}
+		).withAdvisoryWriteLock = (role, fn, options) => {
+			advisoryLockCalls += 1;
+			return originalWithAdvisoryWriteLock(role, fn, options);
+		};
+
+		try {
+			db.migrate([
+				{
+					version: 1,
+					name: "coordinated-migration",
+					up: "CREATE TABLE migrate_lock_probe (id INTEGER PRIMARY KEY)",
+				},
+			]);
+		} finally {
+			raw.transaction = originalTransaction;
+			db.close();
+		}
+
+		expect(immediateCalls).toBe(1);
+		expect(advisoryLockCalls).toBeGreaterThan(0);
+	});
+
 	test("query helpers work (run, get, all)", () => {
 		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
 		cleanupPaths.push(dbPath);
@@ -341,6 +392,53 @@ describe("Database Setup", () => {
 
 		db.get("PRAGMA table_info(pragma_probe)");
 		db.all("PRAGMA index_list(pragma_probe)");
+
+		expect(lockCalls).toBe(0);
+		db.close();
+	});
+
+	test("multi-statement exec locks when any statement mutates", () => {
+		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
+		cleanupPaths.push(dbPath);
+		const db = createDatabase(dbPath);
+
+		db.exec("CREATE TABLE mutating_intent_probe (id INTEGER PRIMARY KEY, value TEXT)");
+
+		let lockCalls = 0;
+		const originalWithAdvisoryWriteLock = db.withAdvisoryWriteLock.bind(db);
+		(
+			db as unknown as {
+				withAdvisoryWriteLock: Database["withAdvisoryWriteLock"];
+			}
+		).withAdvisoryWriteLock = (role, fn, options) => {
+			lockCalls += 1;
+			return originalWithAdvisoryWriteLock(role, fn, options);
+		};
+
+		db.exec("SELECT 1; INSERT INTO mutating_intent_probe (value) VALUES ('x')");
+
+		expect(lockCalls).toBe(1);
+		expect(db.all<{ id: number }>("SELECT id FROM mutating_intent_probe")).toHaveLength(1);
+		db.close();
+	});
+
+	test("semicolon in string literal does not trigger write lock", () => {
+		const dbPath = `/tmp/open-mem-test-${randomUUID()}.db`;
+		cleanupPaths.push(dbPath);
+		const db = createDatabase(dbPath);
+
+		let lockCalls = 0;
+		const originalWithAdvisoryWriteLock = db.withAdvisoryWriteLock.bind(db);
+		(
+			db as unknown as {
+				withAdvisoryWriteLock: Database["withAdvisoryWriteLock"];
+			}
+		).withAdvisoryWriteLock = (role, fn, options) => {
+			lockCalls += 1;
+			return originalWithAdvisoryWriteLock(role, fn, options);
+		};
+
+		db.get("SELECT '; DROP TABLE fake' as marker");
 
 		expect(lockCalls).toBe(0);
 		db.close();

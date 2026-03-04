@@ -71,7 +71,121 @@ function stripLeadingSqlNoise(sql: string): string {
 	}
 }
 
-function hasMutatingIntent(sql: string): boolean {
+function splitSqlStatements(sql: string): string[] {
+	const statements: string[] = [];
+	let start = 0;
+	let inSingleQuote = false;
+	let inDoubleQuote = false;
+	let inBacktickQuote = false;
+	let inBracketQuote = false;
+	let inLineComment = false;
+	let inBlockComment = false;
+
+	for (let index = 0; index < sql.length; index += 1) {
+		const char = sql[index];
+		const next = sql[index + 1];
+
+		if (inLineComment) {
+			if (char === "\n") {
+				inLineComment = false;
+			}
+			continue;
+		}
+
+		if (inBlockComment) {
+			if (char === "*" && next === "/") {
+				inBlockComment = false;
+				index += 1;
+			}
+			continue;
+		}
+
+		if (inSingleQuote) {
+			if (char === "'") {
+				if (next === "'") {
+					index += 1;
+				} else {
+					inSingleQuote = false;
+				}
+			}
+			continue;
+		}
+
+		if (inDoubleQuote) {
+			if (char === '"') {
+				if (next === '"') {
+					index += 1;
+				} else {
+					inDoubleQuote = false;
+				}
+			}
+			continue;
+		}
+
+		if (inBacktickQuote) {
+			if (char === "`") {
+				inBacktickQuote = false;
+			}
+			continue;
+		}
+
+		if (inBracketQuote) {
+			if (char === "]") {
+				inBracketQuote = false;
+			}
+			continue;
+		}
+
+		if (char === "-" && next === "-") {
+			inLineComment = true;
+			index += 1;
+			continue;
+		}
+
+		if (char === "/" && next === "*") {
+			inBlockComment = true;
+			index += 1;
+			continue;
+		}
+
+		if (char === "'") {
+			inSingleQuote = true;
+			continue;
+		}
+
+		if (char === '"') {
+			inDoubleQuote = true;
+			continue;
+		}
+
+		if (char === "`") {
+			inBacktickQuote = true;
+			continue;
+		}
+
+		if (char === "[") {
+			inBracketQuote = true;
+			continue;
+		}
+
+		if (char === ";") {
+			const statement = sql.slice(start, index).trim();
+			if (statement.length > 0) {
+				statements.push(statement);
+			}
+			start = index + 1;
+		}
+	}
+
+	const trailingStatement = sql.slice(start).trim();
+	if (trailingStatement.length > 0) {
+		statements.push(trailingStatement);
+	}
+
+	return statements;
+}
+
+function hasMutatingStatementIntent(sql: string): boolean {
 	const normalized = stripLeadingSqlNoise(sql);
 	if (!normalized) return false;
 
@@ -106,6 +220,21 @@ function hasMutatingIntent(sql: string): boolean {
 
 	if (leadingToken === "WITH") {
 		return /\b(INSERT|UPDATE|DELETE|REPLACE)\b/.test(upper);
+	}
+
+	return false;
+}
+
+function hasMutatingIntent(sql: string): boolean {
+	const statements = splitSqlStatements(sql);
+	if (statements.length === 0) {
+		return false;
+	}
+
+	for (const statement of statements) {
+		if (hasMutatingStatementIntent(statement)) {
+			return true;
+		}
 	}
 
 	return false;
@@ -308,25 +437,32 @@ export class Database {
 	 * are skipped. Each migration runs inside a transaction.
 	 */
 	public migrate(migrations: Migration[]): void {
-		this.ensureMigrationTable();
+		this.withAdvisoryWriteLock(this.processRole, () => {
+			this.ensureMigrationTable();
 
-		const applied = this.db.query("SELECT version FROM _migrations ORDER BY version").all() as {
-			version: number;
-		}[];
-		const appliedVersions = new Set(applied.map((m) => m.version));
+			const applied = this.withRetry("migrate.applied_versions", () => {
+				return this.db.query("SELECT version FROM _migrations ORDER BY version").all() as {
+					version: number;
+				}[];
+			});
+			const appliedVersions = new Set(applied.map((migration) => migration.version));
 
-		const pending = migrations
-			.filter((m) => !appliedVersions.has(m.version))
-			.sort((a, b) => a.version - b.version);
+			const pending = migrations
+				.filter((migration) => !appliedVersions.has(migration.version))
+				.sort((left, right) => left.version - right.version);
 
-		for (const migration of pending) {
-			this.db.transaction(() => {
-				this.db.exec(migration.up);
-				this.db
-					.query("INSERT INTO _migrations (version, name) VALUES ($version, $name)")
-					.run({ $version: migration.version, $name: migration.name });
-			})();
-		}
+			for (const migration of pending) {
+				this.transaction(() => {
+					this.exec(migration.up);
+					this.run("INSERT INTO _migrations (version, name) VALUES ($version, $name)", [
+						{
+							$version: migration.version,
+							$name: migration.name,
+						},
+					]);
+				});
+			}
+		});
 	}
 
 	// ---------------------------------------------------------------------------
