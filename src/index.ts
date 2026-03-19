@@ -148,7 +148,7 @@ export default async function plugin(input: PluginInput): Promise<Hooks> {
 	// 2. Database
 	await ensureDbDirectory(config);
 	Database.enableExtensionSupport();
-	const db = createDatabase(config.dbPath);
+	const db = createDatabase(config.dbPath, { processRole: "plugin" });
 	initializeSchema(db, {
 		hasVectorExtension: db.hasVectorExtension,
 		embeddingDimension: config.embeddingDimension,
@@ -322,6 +322,14 @@ export default async function plugin(input: PluginInput): Promise<Hooks> {
 	// 6. Daemon mode (opt-in)
 	let daemonManager: DaemonManager | null = null;
 	let daemonLivenessTimer: ReturnType<typeof setInterval> | null = null;
+	const fallbackToInProcess = (reason: string): void => {
+		console.warn(`[open-mem] ${reason}`);
+		queueRuntime.setInProcess();
+		if (daemonLivenessTimer) {
+			clearInterval(daemonLivenessTimer);
+			daemonLivenessTimer = null;
+		}
+	};
 
 	if (config.daemonEnabled) {
 		reapOrphanDaemons(config.dbPath);
@@ -334,17 +342,19 @@ export default async function plugin(input: PluginInput): Promise<Hooks> {
 
 		const started = daemonManager.start();
 		if (started) {
-			queueRuntime.setEnqueueOnly(() => daemonManager?.signal("PROCESS_NOW"));
+			queueRuntime.setEnqueueOnly(() => {
+				const result = daemonManager?.signal("PROCESS_NOW");
+				if (!result?.ok) {
+					fallbackToInProcess(
+						`Daemon signal failed (${result?.state ?? "no-daemon"}), falling back to in-process processing`,
+					);
+				}
+			});
 			console.log("[open-mem] Background daemon started — processing delegated");
 
 			daemonLivenessTimer = setInterval(() => {
 				if (daemonManager && !daemonManager.isRunning()) {
-					console.warn("[open-mem] Daemon died, falling back to in-process processing");
-					queueRuntime.setInProcess();
-					if (daemonLivenessTimer) {
-						clearInterval(daemonLivenessTimer);
-						daemonLivenessTimer = null;
-					}
+					fallbackToInProcess("Daemon died, falling back to in-process processing");
 				}
 			}, 30_000);
 		} else {
