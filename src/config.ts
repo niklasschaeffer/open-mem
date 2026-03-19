@@ -187,6 +187,8 @@ function loadFromEnv(): Partial<OpenMemConfig> {
 			.map((s) => s.trim())
 			.filter(Boolean);
 	if (process.env.OPEN_MEM_MODE) env.mode = process.env.OPEN_MEM_MODE;
+	if (process.env.OLLAMA_BASE_URL) env.ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+	else if (process.env.OLLAMA_HOST) env.ollamaBaseUrl = process.env.OLLAMA_HOST;
 
 	return env;
 }
@@ -223,6 +225,8 @@ export function getDefaultDimension(provider: string): number {
 			return 0;
 		case "openrouter":
 			return 0;
+		case "ollama":
+			return 768; // Common default for many Ollama embedding models
 		default:
 			return 768;
 	}
@@ -271,6 +275,8 @@ export function resolveConfig(
 			config.provider = "openrouter";
 		} else if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_BASE_URL) {
 			config.provider = "openai-compatible";
+		} else if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_HOST) {
+			config.provider = "ollama";
 		}
 		// else: keep default ("google")
 	}
@@ -294,6 +300,9 @@ export function resolveConfig(
 				config.apiKey = process.env.OPENROUTER_API_KEY;
 				break;
 			case "bedrock":
+				break;
+			case "ollama":
+				// Ollama typically runs locally and doesn't require an API key
 				break;
 		}
 	}
@@ -325,7 +334,7 @@ export function resolveConfig(
 export function validateConfig(config: OpenMemConfig): string[] {
 	const errors: string[] = [];
 
-	const providerRequiresKey = config.provider !== "bedrock";
+	const providerRequiresKey = config.provider !== "bedrock" && config.provider !== "ollama";
 	if (config.compressionEnabled && providerRequiresKey && !config.apiKey) {
 		errors.push(
 			"AI compression enabled but no API key found. Get a free Gemini API key at https://aistudio.google.com/apikey and set GOOGLE_GENERATIVE_AI_API_KEY, or set OPEN_MEM_PROVIDER and the appropriate API key for your provider.",

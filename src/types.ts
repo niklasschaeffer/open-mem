@@ -126,9 +126,10 @@ export interface OpenMemConfig {
 	dbPath: string; // Path to SQLite database file
 
 	// AI
-	provider: string; // AI provider: "anthropic" | "bedrock" | "openai" | "google"
+	provider: string; // AI provider: "anthropic" | "bedrock" | "openai" | "google" | "ollama"
 	apiKey: string | undefined; // Provider API key (env: ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
 	openaiApiBaseUrl?: string; // Custom base URL for OpenAI-compatible APIs (env: OPENAI_API_BASE_URL)
+	ollamaBaseUrl?: string; // Ollama server URL (env: OLLAMA_BASE_URL or OLLAMA_HOST)
 	model: string; // Model for compression (default: claude-sonnet-4-20250514)
 	maxTokensPerCompression: number; // Max tokens for compression response
 
