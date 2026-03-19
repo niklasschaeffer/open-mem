@@ -18,6 +18,7 @@ export type ProviderType =
 	| "openai"
 	| "openai-compatible"
 	| "google"
+	| "ollama"
 	| string;
 
 /** Configuration for creating an AI model instance. */
@@ -94,9 +95,16 @@ export function createModel(config: ModelConfig): LanguageModel {
 			const openrouter = createOpenRouter({ apiKey: config.apiKey });
 			return openrouter(config.model);
 		}
+		case "ollama": {
+			const { createOllama } = require("ollama-ai-provider");
+			const ollama = createOllama({
+				baseURL: process.env.OLLAMA_BASE_URL,
+			});
+			return ollama(config.model);
+		}
 		default:
 			throw new Error(
-				`Unknown provider: ${config.provider}. Supported: anthropic, bedrock, openai, openai-compatible, google, openrouter`,
+				`Unknown provider: ${config.provider}. Supported: anthropic, bedrock, openai, openai-compatible, google, openrouter, ollama`,
 			);
 	}
 }
@@ -135,6 +143,13 @@ export function createEmbeddingModel(config: ModelConfig): EmbeddingModel | null
 				return null;
 			case "openrouter":
 				return null;
+			case "ollama": {
+				const { createOllama } = require("ollama-ai-provider");
+				const ollama = createOllama({
+					baseURL: process.env.OLLAMA_BASE_URL,
+				});
+				return ollama.embedding("nomic-embed-text");
+			}
 			default:
 				return null;
 		}
@@ -154,6 +169,7 @@ const DEFAULT_FALLBACK_MODELS: Record<string, string> = {
 	bedrock: "us.anthropic.claude-3-5-haiku-20241022-v1:0",
 	openrouter: "google/gemini-2.5-flash-lite",
 	"openai-compatible": "gpt-4o-mini",
+	ollama: "llama3.2",
 };
 
 function resolveApiKeyForProvider(provider: string): string | undefined {
@@ -169,6 +185,8 @@ function resolveApiKeyForProvider(provider: string): string | undefined {
 		case "openrouter":
 			return process.env.OPENROUTER_API_KEY;
 		case "bedrock":
+			return undefined;
+		case "ollama":
 			return undefined;
 		default:
 			return undefined;
