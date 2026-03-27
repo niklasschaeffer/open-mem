@@ -363,9 +363,19 @@ export function initializeVec0Table(db: Database, dimension: number): void {
 		);
 		if (meta && Number(meta.value) !== dimension) {
 			console.warn(
-				`[open-mem] vec0 table exists with dimension ${meta.value}, but config specifies ${dimension}. Drop observation_embeddings to re-create with new dimension.`,
+				`[open-mem] Recreating observation_embeddings table: dimension changed from ${meta.value} to ${dimension}`,
 			);
-			return;
+			// Drop the old table with mismatched dimension
+			db.exec("DROP TABLE IF EXISTS observation_embeddings");
+			// Clear any vec-related metadata
+			db.run("DELETE FROM _embedding_meta WHERE key = 'dimension'");
+			// Recreate the table with the new dimension
+			db.exec(
+				`CREATE VIRTUAL TABLE observation_embeddings USING vec0(
+					observation_id TEXT PRIMARY KEY,
+					embedding float[${dimension}] distance_metric=cosine
+				)`,
+			);
 		}
 	} else {
 		db.exec(

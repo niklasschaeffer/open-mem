@@ -169,4 +169,28 @@ describe("Schema and FTS5", () => {
 		expect(results).toHaveLength(0);
 		db.close();
 	});
+
+	test("initializeVec0Table recreates table when dimension changes", () => {
+		const { db, dbPath } = createRawTestDb();
+		cleanupPaths.push(dbPath);
+		initializeSchema(db);
+
+		// Initialize with dimension 768
+		initializeSchema(db, { hasVectorExtension: true, embeddingDimension: 768 });
+		let meta = db.get<{ value: string }>("SELECT value FROM _embedding_meta WHERE key = 'dimension'");
+		expect(meta?.value).toBe("768");
+
+		// Re-initialize with dimension 1536 (different dimension)
+		initializeSchema(db, { hasVectorExtension: true, embeddingDimension: 1536 });
+		meta = db.get<{ value: string }>("SELECT value FROM _embedding_meta WHERE key = 'dimension'");
+		expect(meta?.value).toBe("1536");
+
+		// Verify the table still exists
+		const table = db.get<{ name: string }>(
+			"SELECT name FROM sqlite_master WHERE type='table' AND name='observation_embeddings'",
+		);
+		expect(table).not.toBeNull();
+
+		db.close();
+	});
 });
