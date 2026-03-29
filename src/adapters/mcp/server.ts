@@ -79,6 +79,7 @@ export class McpServer {
 	private readonly supportedProtocolVersions: string[];
 	private initialized = false;
 	private pendingOps: Promise<void>[] = [];
+	private pendingSends: Promise<void>[] = [];
 
 	constructor(deps: McpServerDeps) {
 		this.memoryEngine = deps.memoryEngine;
@@ -112,7 +113,7 @@ export class McpServer {
 		});
 
 		rl.on("close", () => {
-			Promise.allSettled(this.pendingOps).then(() => process.exit(0));
+			Promise.allSettled([...this.pendingOps, ...this.pendingSends]).then(() => process.exit(0));
 		});
 	}
 
@@ -396,7 +397,15 @@ export class McpServer {
 		}
 	}
 
-	private send(response: JsonRpcResponse): void {
-		process.stdout.write(`${JSON.stringify(response)}\n`);
+	private send(response: JsonRpcResponse): Promise<void> {
+		const promise = new Promise<void>((resolve) => {
+			const output = `${JSON.stringify(response)}\n`;
+			process.stdout.write(output, () => resolve());
+		});
+		this.pendingSends.push(promise);
+		promise.finally(() => {
+			this.pendingSends = this.pendingSends.filter((p) => p !== promise);
+		});
+		return promise;
 	}
 }
