@@ -87,8 +87,11 @@ function fallbackToInProcess(state: WorkerState, reason?: string): void {
 	}
 }
 
-function writeResponse(resp: BridgeResponse): void {
-	process.stdout.write(`${JSON.stringify(resp)}\n`);
+function writeResponse(resp: BridgeResponse): Promise<void> {
+	return new Promise((resolve) => {
+		const output = `${JSON.stringify(resp)}\n`;
+		process.stdout.write(output, () => resolve());
+	});
 }
 
 function parseWorkerArgs(): WorkerArgs {
@@ -427,7 +430,7 @@ export async function runPlatformWorker(platform: PlatformName): Promise<void> {
 			try {
 				parsed = JSON.parse(trimmed);
 			} catch {
-				writeResponse({
+				await writeResponse({
 					ok: false,
 					code: "INVALID_JSON",
 					message: "Invalid JSON payload",
@@ -437,12 +440,12 @@ export async function runPlatformWorker(platform: PlatformName): Promise<void> {
 			try {
 				const envelope = parseEnvelope(parsed);
 				const response = await handleEnvelope(envelope);
-				writeResponse(response);
+				await writeResponse(response);
 				if ((envelope.command ?? "event") === "shutdown") {
 					await shutdown();
 				}
 			} catch (error) {
-				writeResponse({
+				await writeResponse({
 					ok: false,
 					code: "INGESTION_FAILED",
 					message: String(error),
